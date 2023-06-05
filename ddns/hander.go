@@ -122,29 +122,6 @@ func (h *DDNSHandler) do(netType NetType, w dns.ResponseWriter, req *dns.Msg) {
 		}
 	}
 
-	log.Info("remote: %s, lookup: %s, edns0_subnet: %s", remote, Q.String(), edns0_subnet)
-
-	//
-	// query in cache
-	//
-	key := KeyGen(Q)
-	mesg, err := h.cache.Get(key)
-	if err != nil {
-		if _, err = h.negCache.Get(key); err != nil {
-			log.Debug("%s didn't hit cache", Q.String())
-		} else {
-			log.Debug("%s hit negative cache", Q.String())
-			dns.HandleFailed(w, req)
-			return
-		}
-	} else if mesg != nil {
-		log.Debug("%s hit cache", Q.String())
-		// we need this copy against concurrent modification of Id
-		msg := *mesg
-		msg.Id = req.Id
-		w.WriteMsg(&msg)
-		return
-	}
 	IPQuery := h.isIPQuery(q)
 
 	rspByIps := func(ips []net.IP, ttl uint32) {
@@ -178,6 +155,42 @@ func (h *DDNSHandler) do(netType NetType, w dns.ResponseWriter, req *dns.Msg) {
 		}
 
 		w.WriteMsg(m)
+	}
+
+	//
+	// query in fixed
+	//
+	if Q.qname == "test.0x99.cc" {
+		ips := []net.IP{}
+		if q.Qtype == dns.TypeA {
+			ips = append(ips, remote)
+		}
+		rspByIps(ips, 900)
+		log.Info("remote: %s, lookup: %s, edns0_subnet: %s, fixed: %v", remote, Q.String(), edns0_subnet, ips)
+	} else {
+		log.Info("remote: %s, lookup: %s, edns0_subnet: %s", remote, Q.String(), edns0_subnet)
+	}
+
+	//
+	// query in cache
+	//
+	key := KeyGen(Q)
+	mesg, err := h.cache.Get(key)
+	if err != nil {
+		if _, err = h.negCache.Get(key); err != nil {
+			log.Debug("%s didn't hit cache", Q.String())
+		} else {
+			log.Debug("%s hit negative cache", Q.String())
+			dns.HandleFailed(w, req)
+			return
+		}
+	} else if mesg != nil {
+		log.Debug("%s hit cache", Q.String())
+		// we need this copy against concurrent modification of Id
+		msg := *mesg
+		msg.Id = req.Id
+		w.WriteMsg(&msg)
+		return
 	}
 
 	//
