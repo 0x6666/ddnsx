@@ -167,6 +167,7 @@ func (h *DDNSHandler) do(netType NetType, w dns.ResponseWriter, req *dns.Msg) {
 		}
 		rspByIps(ips, 900)
 		log.Info("remote: %s, lookup: %s, edns0_subnet: %s, fixed: %v", remote, Q.String(), edns0_subnet, ips)
+		return
 	} else {
 		log.Info("remote: %s, lookup: %s, edns0_subnet: %s", remote, Q.String(), edns0_subnet)
 	}
