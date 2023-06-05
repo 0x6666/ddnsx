@@ -16,7 +16,7 @@ type NetType int
 
 const (
 	NetTCP NetType = 1
-	NetUDP         = 2
+	NetUDP NetType = 2
 )
 
 const (
@@ -75,8 +75,7 @@ func NewHandler() *DDNSHandler {
 	cache, _ = NewMemCache(1200)
 	negCache, _ = NewMemCache(1200)
 
-	var hosts Hosts
-	hosts = NewHosts()
+	var hosts = NewHosts()
 
 	return &DDNSHandler{resolver, cache, negCache, hosts}
 }
@@ -111,7 +110,19 @@ func (h *DDNSHandler) do(netType NetType, w dns.ResponseWriter, req *dns.Msg) {
 	} else {
 		remote = w.RemoteAddr().(*net.UDPAddr).IP
 	}
-	log.Info("remote: %s, lookup: %s", remote, Q.String())
+
+	edns0_subnet := ""
+	if opt := req.IsEdns0(); opt != nil {
+		// OPT PSEUDOSECTION
+		for _, o := range opt.Option {
+			if o.Option() == dns.EDNS0SUBNET {
+				edns0_subnet = o.String()
+				break
+			}
+		}
+	}
+
+	log.Info("remote: %s, lookup: %s, edns0_subnet: %s", remote, Q.String(), edns0_subnet)
 
 	//
 	// query in cache
@@ -150,7 +161,7 @@ func (h *DDNSHandler) do(netType NetType, w dns.ResponseWriter, req *dns.Msg) {
 				Ttl:    ttl,
 			}
 			for _, ip := range ips {
-				a := &dns.A{rr_header, ip}
+				a := &dns.A{Hdr: rr_header, A: ip}
 				m.Answer = append(m.Answer, a)
 			}
 		case _IP6Query:
@@ -161,7 +172,7 @@ func (h *DDNSHandler) do(netType NetType, w dns.ResponseWriter, req *dns.Msg) {
 				Ttl:    ttl,
 			}
 			for _, ip := range ips {
-				aaaa := &dns.AAAA{rr_header, ip}
+				aaaa := &dns.AAAA{Hdr: rr_header, AAAA: ip}
 				m.Answer = append(m.Answer, aaaa)
 			}
 		}
